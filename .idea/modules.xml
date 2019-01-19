@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Open_Source_Computer_vision.iml" filepath="$PROJECT_DIR$/.idea/Open_Source_Computer_vision.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../PycharmProjects/Pyhthon_Projects/.idea/Pyhthon_Projects.iml" filepath="$PROJECT_DIR$/../PycharmProjects/Pyhthon_Projects/.idea/Pyhthon_Projects.iml" />
     </modules>
   </component>
 </project>
