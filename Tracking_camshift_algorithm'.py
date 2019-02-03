@@ -1,103 +1,147 @@
-from __future__ import print_function
-import sys
-PY3 = sys.version_info[0] == 3
-
-if PY3:
-    xrange = range
-
 import numpy as np
-import cv2 as cv
+import cv2
 
-# local module
-import video
-from video import presets
+# finction related to object tracking related functionalitu
+class ObjectTracking(object):
+    def __init__(self, scaling_factor = 0.5):
+        # initialize video capture object
+        self.cap = cv2.VideoCapture(0)
 
+        # capture the frame
+        _, self.frame = self.cap.read()
 
-class App(object):
-    def __init__(self, video_src):
-        self.cam = video.create_capture(video_src, presets['cube'])
-        _ret, self.frame = self.cam.read()
-        cv.namedWindow('camshift')
-        cv.setMouseCallback('camshift', self.onmouse)
+        # scaling factor for captured frame
+        self.scaling_factor = scaling_factor
 
+        # resize the frame
+        self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+
+        # create a window tp display frame
+        cv2.namedWindow('Object tracker')
+
+        # set mouse callback function to track the mouse
+        cv2.setMouseCallback('object tracker', self.mouse_event)
+
+        # initial variable related to rectangular region selection
         self.selection = None
+
+        # initial variable related to starting position
         self.drag_start = None
-        self.show_backproj = False
-        self.track_window = None
 
-    def onmouse(self, event, x, y, flags, param):
-        if event == cv.EVENT_LBUTTONDOWN:
+        # initial variable related to state of tracking
+        self.tracking_state = 0
+
+
+    # define for mouse tracking event
+    def mouse_event(self, event, x, y, flags, param):
+        # convert x and y coordinates into 16-bit numpy integers
+        x, y = np.int16([x, y])
+
+        # check if a mouse button down has occured
+        if event == cv2.EVENT_LBUTTONDOWN:
             self.drag_start = (x, y)
-            self.track_window = None
+            self.tracking_state = None
+
+        # check if the user start selecting
         if self.drag_start:
-            xmin = min(x, self.drag_start[0])
-            ymin = min(y, self.drag_start[1])
-            xmax = max(x, self.drag_start[0])
-            ymax = max(y, self.drag_start[1])
-            self.selection = (xmin, ymin, xmax, ymax)
-        if event == cv.EVENT_LBUTTONUP:
-            self.drag_start = None
-            self.track_window = (xmin, ymin, xmax - xmin, ymax - ymin)
+            if flags & cv2.EVENT_FLAG_LBUTTON:
+                # extract the dimension of the frame
+                h, w = self.frame.shape[:2]
 
-    def show_hist(self):
-        bin_count = self.hist.shape[0]
-        bin_w = 24
-        img = np.zeros((256, bin_count*bin_w, 3), np.uint8)
-        for i in xrange(bin_count):
-            h = int(self.hist[i])
-            cv.rectangle(img, (i*bin_w+2, 255), ((i+1)*bin_w-2, 255-h), (int(180.0*i/bin_count), 255, 255), -1)
-        img = cv.cvtColor(img, cv.COLOR_HSV2BGR)
-        cv.imshow('hist', img)
+                # get the initial position
+                x1, y1 = self.drag_start
 
-    def run(self):
+                # get max and min value
+                x0, y0 = np.maximum(0, np.minimum([x1, y1], [x, y]))
+                x1, y1 = np.minimum([w, h], np.maximum([x1, y1], [x, y]))
+
+                # reset the selectoin variable
+                self.selection = None
+
+                # finilize the rectangular selection
+                if x1-x0 > 0 and y1-y0>0 :
+                    self.selection = (x0, y0, x1, y1)
+
+                else:
+                    # if selection is done
+                    self.drag_start = None
+                    if self.selection is not None:
+                        self.tracking_state = 1
+
+    # method to start tracking the object
+    def start_tracking(self):
+        # iterate until the esc
         while True:
-            _ret, self.frame = self.cam.read()
-            vis = self.frame.copy()
-            hsv = cv.cvtColor(self.frame, cv.COLOR_BGR2HSV)
-            mask = cv.inRange(hsv, np.array((0., 60., 32.)), np.array((180., 255., 255.)))
+            # capture frame from webcam
+            _, self.frame = self.cap.read()
 
+            # resize the input frame
+            self.frame = cv2.resize(self.frame, None, fx=self.scaling_factor, fy=self.scaling_factor, interpolation=cv2.INTER_AREA)
+
+            # create a copy of frame, it is done because as we do hsv operation it will chaneg the ogiginal image prpperty
+            vis = self.frame.copy()
+
+            # convert to HSV model
+            hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
+
+            # create mask based on predefined thresholds
+            mask = cv2.inRange(hsv, np.array((0., 60., 32.,)), np.array(100., 255., 255.))
+
+            # check if the user had selected the region
             if self.selection:
+                # extract the coordinate of the selected rectangle
                 x0, y0, x1, y1 = self.selection
+
+                # extract the tracking window
+                self.tracking_window = (x0, y0, x1-x0, y1-y0)
+
+                # extract the region of interst
                 hsv_roi = hsv[y0:y1, x0:x1]
                 mask_roi = mask[y0:y1, x0:x1]
-                hist = cv.calcHist( [hsv_roi], [0], mask_roi, [16], [0, 180] )
-                cv.normalize(hist, hist, 0, 255, cv.NORM_MINMAX)
-                self.hist = hist.reshape(-1)
-                self.show_hist()
 
+                # compute the hostogram of the regoin
+                hist = cv2.calcHist([hsv_roi], [0], mask_roi, [16], [0, 100])
+
+                # normalize the reshape the histogram
+                cv2.normalize(hist, hist, 0, 255, cv2.NORM_MINMAX)
+                self.hist = hist.reshape(-1)
+
+                # extract ROi from frame
                 vis_roi = vis[y0:y1, x0:x1]
-                cv.bitwise_not(vis_roi, vis_roi)
+
+                # compute image negative
+                cv2.bitwise_not(vis_roi, vis_roi)
                 vis[mask == 0] = 0
 
-            if self.track_window and self.track_window[2] > 0 and self.track_window[3] > 0:
+            # check if the system is in the tracking mode
+            if self.tracking_state == 1:
+                # reset the selection variable
                 self.selection = None
-                prob = cv.calcBackProject([hsv], [0], self.hist, [0, 180], 1)
-                prob &= mask
-                term_crit = ( cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1 )
-                track_box, self.track_window = cv.CamShift(prob, self.track_window, term_crit)
+                
+                # compute the histogram back projection
+                hsv_backproj = cv2.calcBackProject([hsv], [0], self.hist, [0, 180], 1)
 
-                if self.show_backproj:
-                    vis[:] = prob[...,np.newaxis]
-                try:
-                    cv.ellipse(vis, track_box, (0, 0, 255), 2)
-                except:
-                    print(track_box)
+                # compute bitwise and between histogram backprojection and mask
+                hsv_backproj &= mask
 
-            cv.imshow('camshift', vis)
+                # define termination criteria for the tracker
+                term_crit = ( cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1 )
 
-            ch = cv.waitKey(5)
-            if ch == 27:
+                # apply camshift
+                track_box, self.track_window = cv.CamShift(hsv_backproj, self.track_window, term_crit)
+
+                cv2.ellipse(vis, track_box, (0, 0, 255), 2)
+
+            # show output live video
+            cv2.imshow('object tracker', vis)
+
+            # stop if esc
+            c = cv2.waitKey(5)
+            if c == 27:
                 break
-            if ch == ord('b'):
-                self.show_backproj = not self.show_backproj
-        cv.destroyAllWindows()
+
+        cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
-    import sys
-    try:
-        video_src = sys.argv[1]
-    except:
-        video_src = 0
-    print(__doc__)
-    App(video_src).run()
+    ObjectTracking().start_tracking()

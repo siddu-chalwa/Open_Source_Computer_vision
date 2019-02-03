@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 # Load input image and convert to grayscale
-image = cv2.imread('puzzle.jpg')
+image = cv2.imread('puzzle.jpg',cv2.COLOR_BGR2GRAY)
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 # Load template image
 template = cv2.imread('waldo.jpeg', 0)
