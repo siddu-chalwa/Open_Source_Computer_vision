@@ -6,6 +6,10 @@ sudo apt-get upgrade
 
 sudo apt-get install python3-pip
 
+pip3 install opencv-python3
+
+pip3 install opencv-contrib-python
+
 sudo apt install python3-numpy python3-scipy python3-matplotlib python3-pandas
 
 pip3 install Pillow
