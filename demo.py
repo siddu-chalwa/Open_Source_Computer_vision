@@ -124,8 +124,8 @@ class PageOne(Frame):
                                 mixer.music.load("/home/pi/Desktop/smile/audio/lock.mp3")
                                 mixer.music.play()
                                 time.sleep(3.0)
-                                fromaddr = "siddeshwarchalwa1@gmail.com"
-                                toaddr = "@Leme1.sid"
+                                fromaddr = "mailID"
+                                toaddr = "mailID_password"
                                 msg = MIMEMultipart()
                                 msg['From'] = fromaddr
                                 msg['To'] = toaddr
